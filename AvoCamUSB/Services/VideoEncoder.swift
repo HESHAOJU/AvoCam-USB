@@ -42,7 +42,7 @@ class VideoEncoder {
     private func createSession() {
         var status: OSStatus = noErr
 
-        // 创建压缩会话
+        // 创建压缩会话（直接传入输出回调）
         var session: VTCompressionSession?
         status = VTCompressionSessionCreate(
             allocator: kCFAllocatorDefault,
@@ -54,7 +54,12 @@ class VideoEncoder {
                 kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
             ] as CFDictionary,
             compressedDataAllocator: nil,
-            outputCallback: nil,
+            outputCallback: { (outputCallbackRefCon, sourceFrameRefCon, status, infoFlags, sampleBuffer) in
+                guard let sampleBuffer = sampleBuffer, status == noErr else { return }
+                guard let refCon = outputCallbackRefCon else { return }
+                let encoder = Unmanaged<VideoEncoder>.fromOpaque(refCon).takeUnretainedValue()
+                encoder.handleEncodedSampleBuffer(sampleBuffer, infoFlags: infoFlags)
+            },
             refcon: Unmanaged.passUnretained(self).toOpaque(),
             compressionSessionOut: &session
         )
@@ -82,17 +87,6 @@ class VideoEncoder {
         for (key, value) in properties {
             VTSessionSetProperty(compressionSession, key: key, value: value as CFTypeRef)
         }
-
-        // 设置输出回调
-        VTCompressionSessionSetOutputCallback(
-            compressionSession,
-            outputCallback: { (outputCallbackRefCon, sourceFrameRefCon, status, infoFlags, sampleBuffer) in
-                guard let sampleBuffer = sampleBuffer, status == noErr else { return }
-                let encoder = Unmanaged<VideoEncoder>.fromOpaque(outputCallbackRefCon!).takeUnretainedValue()
-                encoder.handleEncodedSampleBuffer(sampleBuffer, infoFlags: infoFlags)
-            },
-            outputCallbackRefCon: Unmanaged.passUnretained(self).toOpaque()
-        )
 
         // 准备编码
         VTCompressionSessionPrepareToEncodeFrames(compressionSession)
@@ -192,14 +186,6 @@ class VideoEncoder {
         }
 
         return result
-    }
-
-    /// 强制生成关键帧
-    func forceKeyFrame() {
-        encoderQueue.async { [weak self] in
-            guard let self = self, let session = self.compressionSession else { return }
-            VTSessionSetProperty(session, key: kVTCompressionPropertyKey_ForceKeyFrame, value: kCFBooleanTrue)
-        }
     }
 
     deinit {

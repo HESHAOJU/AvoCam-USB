@@ -107,11 +107,11 @@ class AudioManager: NSObject {
         guard let converter = converter else { return }
 
         // 创建 AAC 输出缓冲区（压缩格式）
-        let outputCapacity = AVAudioFrameCount(buffer.frameLength)
+        // AAC 最大包大小通常不超过 4096 字节
         guard let outputBuffer = AVAudioCompressedBuffer(
             format: converter.outputFormat,
             packetCapacity: 1,
-            maximumPacketSize: converter.outputFormat.maximumPacketSize
+            maximumPacketSize: 4096
         ) else {
             print("[AudioManager] 创建输出缓冲区失败")
             return

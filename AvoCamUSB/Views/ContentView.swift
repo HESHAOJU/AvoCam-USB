@@ -182,18 +182,6 @@ struct ContentView: View {
                         .cornerRadius(10)
                 }
                 .disabled(!streamController.isStreaming)
-
-                Button(action: {
-                    streamController.forceKeyFrame()
-                }) {
-                    Label("强制关键帧", systemImage: "key")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(.systemGray5))
-                        .foregroundColor(.primary)
-                        .cornerRadius(10)
-                }
-                .disabled(!streamController.isStreaming)
             }
         }
     }

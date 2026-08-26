@@ -135,9 +135,4 @@ class StreamController: ObservableObject {
             )
         }
     }
-
-    /// 强制关键帧
-    func forceKeyFrame() {
-        videoEncoder.forceKeyFrame()
-    }
 }
