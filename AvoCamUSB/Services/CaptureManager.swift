@@ -50,12 +50,8 @@ class CaptureManager: NSObject {
             captureSession.removeOutput(output)
         }
 
-        // 设置最高优先级
-        if captureSession.canSetSessionPreset(.inputPriority) {
-            captureSession.sessionPreset = .inputPriority
-        } else {
-            captureSession.sessionPreset = .high
-        }
+        // 设置会话预设（使用 high，因为我们通过 activeFormat 手动设置最高规格）
+        captureSession.sessionPreset = .high
 
         // 获取摄像头设备
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) else {
