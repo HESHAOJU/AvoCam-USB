@@ -371,6 +371,32 @@ struct ContentView: View {
                 }
                 .disabled(!streamController.isStreaming)
             }
+
+            // 缩放滑块（推流中可实时调节）
+            if streamController.isStreaming {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("缩放")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(String(format: "%.1fx", streamController.zoomFactor))
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.blue)
+                    }
+                    Slider(
+                        value: Binding(
+                            get: { streamController.zoomFactor },
+                            set: { streamController.setZoom($0) }
+                        ),
+                        in: 1.0...5.0,
+                        step: 0.1
+                    )
+                    .accentColor(.blue)
+                }
+                .padding(.top, 4)
+            }
         }
     }
 

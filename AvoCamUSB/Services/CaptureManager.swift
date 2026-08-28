@@ -33,6 +33,17 @@ class CaptureManager: NSObject {
     /// 闪光灯状态
     private(set) var isTorchOn: Bool = false
 
+    /// 当前缩放因子
+    private(set) var currentZoomFactor: CGFloat = 1.0
+
+    /// 最大缩放因子
+    var maxZoomFactor: CGFloat {
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: currentPosition) else {
+            return 5.0
+        }
+        return min(device.activeFormat.videoMaxZoomFactor, 5.0) // 限制最大 5 倍
+    }
+
     // MARK: - 初始化与配置
 
     /// 配置采集会话（自动选择最高规格）
@@ -253,6 +264,25 @@ class CaptureManager: NSObject {
         } catch {
             print("[CaptureManager] 切换闪光灯失败: \(error)")
             return false
+        }
+    }
+
+    /// 设置缩放因子（1.0 ~ maxZoomFactor）
+    func setZoom(_ factor: CGFloat) {
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: currentPosition) else {
+            return
+        }
+        let maxZoom = min(device.activeFormat.videoMaxZoomFactor, 5.0)
+        let clampedFactor = max(1.0, min(factor, maxZoom))
+
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = clampedFactor
+            device.unlockForConfiguration()
+            currentZoomFactor = clampedFactor
+            print("[CaptureManager] 缩放设置为: \(String(format: "%.1f", clampedFactor))x")
+        } catch {
+            print("[CaptureManager] 设置缩放失败: \(error)")
         }
     }
 

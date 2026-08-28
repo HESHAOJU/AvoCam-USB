@@ -52,6 +52,7 @@ class StreamController: ObservableObject {
     @Published var audioFramesSent: Int = 0
     @Published var isScreenDimmed: Bool = false
     @Published var isTorchOn: Bool = false
+    @Published var zoomFactor: Double = 1.0
 
     // 统计信息（每秒刷新一次）
     @Published var streamDuration: String = "00:00"
@@ -438,6 +439,13 @@ class StreamController: ObservableObject {
         if captureManager.toggleTorch() {
             isTorchOn = captureManager.isTorchOn
         }
+    }
+
+    /// 设置缩放（1.0 ~ 5.0）
+    func setZoom(_ factor: Double) {
+        guard isStreaming else { return }
+        zoomFactor = factor
+        captureManager.setZoom(CGFloat(factor))
     }
 
     /// 应用启动时自动推流
