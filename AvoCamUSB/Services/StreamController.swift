@@ -51,6 +51,7 @@ class StreamController: ObservableObject {
     @Published var videoFramesSent: Int = 0
     @Published var audioFramesSent: Int = 0
     @Published var isScreenDimmed: Bool = false
+    @Published var isTorchOn: Bool = false
 
     // 统计信息（每秒刷新一次）
     @Published var streamDuration: String = "00:00"
@@ -428,6 +429,14 @@ class StreamController: ObservableObject {
         } else {
             ScreenDimmer.shared.engage()
             isScreenDimmed = true
+        }
+    }
+
+    /// 切换闪光灯
+    func toggleTorch() {
+        guard isStreaming else { return }
+        if captureManager.toggleTorch() {
+            isTorchOn = captureManager.isTorchOn
         }
     }
 

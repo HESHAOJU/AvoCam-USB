@@ -346,6 +346,19 @@ struct ContentView: View {
                 .disabled(!streamController.isStreaming)
 
                 Button(action: {
+                    streamController.toggleTorch()
+                }) {
+                    Label(streamController.isTorchOn ? "关灯" : "闪光灯",
+                          systemImage: streamController.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(streamController.isTorchOn ? Color.yellow : Color(.systemGray5))
+                        .foregroundColor(streamController.isTorchOn ? .black : .primary)
+                        .cornerRadius(10)
+                }
+                .disabled(!streamController.isStreaming)
+
+                Button(action: {
                     streamController.toggleScreenDim()
                 }) {
                     Label(streamController.isScreenDimmed ? "恢复屏幕" : "息屏",

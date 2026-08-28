@@ -30,6 +30,9 @@ class CaptureManager: NSObject {
     /// 当前视频方向
     private(set) var currentOrientation: VideoOrientation = .landscape
 
+    /// 闪光灯状态
+    private(set) var isTorchOn: Bool = false
+
     // MARK: - 初始化与配置
 
     /// 配置采集会话（自动选择最高规格）
@@ -219,6 +222,38 @@ class CaptureManager: NSObject {
     func switchCamera() {
         let newPosition: AVCaptureDevice.Position = (currentPosition == .back) ? .front : .back
         configure(position: newPosition)
+    }
+
+    /// 切换闪光灯（仅后置摄像头支持）
+    func toggleTorch() -> Bool {
+        guard currentPosition == .back else {
+            print("[CaptureManager] 前置摄像头无闪光灯")
+            return false
+        }
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            return false
+        }
+        guard device.hasTorch else {
+            print("[CaptureManager] 设备不支持闪光灯")
+            return false
+        }
+
+        do {
+            try device.lockForConfiguration()
+            if device.torchMode == .on {
+                device.torchMode = .off
+                isTorchOn = false
+            } else {
+                try device.setTorchModeOn(level: 1.0) // 最大亮度
+                isTorchOn = true
+            }
+            device.unlockForConfiguration()
+            print("[CaptureManager] 闪光灯已\(isTorchOn ? "开启" : "关闭")")
+            return true
+        } catch {
+            print("[CaptureManager] 切换闪光灯失败: \(error)")
+            return false
+        }
     }
 
     /// 获取当前分辨率和帧率描述
