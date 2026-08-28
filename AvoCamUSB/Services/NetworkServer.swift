@@ -55,10 +55,11 @@ class NetworkServer {
         guard shouldRun else { return }
 
         do {
-            let params = NWParameters.tcp
+            // 创建 TCP 选项并启用 NODELAY（禁用 Nagle 算法，降低延迟）
+            let tcpOptions = NWProtocolTCP.Options()
+            tcpOptions.noDelay = true
+            let params = NWParameters(tls: nil, tcp: tcpOptions)
             params.allowLocalEndpointReuse = true
-            // TCP_NODELAY：禁用 Nagle 算法，降低延迟，减少缓冲
-            params.tcpOptions?.noDelay = true
 
             let listener = try NWListener(using: params, on: NWEndpoint.Port(rawValue: port)!)
             self.listener = listener
