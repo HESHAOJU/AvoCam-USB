@@ -10,7 +10,7 @@ import SwiftUI
 /// 主界面
 struct ContentView: View {
 
-    @StateObject private var streamController = StreamController()
+    @EnvironmentObject private var streamController: StreamController
 
     var body: some View {
         NavigationView {
@@ -31,6 +31,15 @@ struct ContentView: View {
 
                     // 状态卡片
                     statusCard
+
+                    // 统计卡片
+                    statsCard
+
+                    // 视频设置卡片
+                    videoSettingsCard
+
+                    // 功耗优化卡片
+                    powerSavingCard
 
                     // 设备信息
                     deviceInfoCard
@@ -92,6 +101,159 @@ struct ContentView: View {
                         .font(.title3)
                         .fontWeight(.semibold)
                 }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+
+    // MARK: - 统计卡片
+
+    private var statsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("推流统计", systemImage: "chart.bar")
+                .font(.headline)
+
+            Divider()
+
+            HStack {
+                statItem(title: "推流时长", value: streamController.streamDuration)
+                Spacer()
+                statItem(title: "实时帧率", value: "\(streamController.currentFps) fps")
+                Spacer()
+                statItem(title: "实时码率", value: formatBitrate(streamController.currentBitrate))
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+
+    private func statItem(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+        }
+    }
+
+    private func formatBitrate(_ bps: Int) -> String {
+        if bps >= 1_000_000 {
+            return String(format: "%.1f Mbps", Double(bps) / 1_000_000.0)
+        } else if bps >= 1_000 {
+            return "\(bps / 1_000) Kbps"
+        } else {
+            return "\(bps) bps"
+        }
+    }
+
+    // MARK: - 视频设置卡片
+
+    private var videoSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("视频设置", systemImage: "slider.horizontal.3")
+                .font(.headline)
+
+            Divider()
+
+            // 分辨率和帧率选择器
+            VStack(alignment: .leading, spacing: 4) {
+                Text("分辨率 / 帧率")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Picker("分辨率 / 帧率", selection: Binding(
+                    get: { streamController.selectedFormatIndex },
+                    set: { streamController.selectFormat(at: $0) }
+                )) {
+                    ForEach(0..<streamController.availableFormats.count, id: \.self) { index in
+                        Text(streamController.availableFormats[index].description)
+                            .tag(index)
+                    }
+                }
+                .pickerStyle(MenuPickerStyle())
+                .disabled(streamController.isStreaming)
+            }
+
+            // 方向选择器
+            VStack(alignment: .leading, spacing: 4) {
+                Text("视频方向")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Picker("视频方向", selection: $streamController.selectedOrientation) {
+                    ForEach(VideoOrientation.allCases) { orientation in
+                        Text(orientation.rawValue).tag(orientation)
+                    }
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .disabled(streamController.isStreaming)
+            }
+
+            // 码率选择器
+            VStack(alignment: .leading, spacing: 4) {
+                Text("编码码率")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Picker("编码码率", selection: $streamController.selectedBitrateIndex) {
+                    ForEach(0..<streamController.bitrateOptions.count, id: \.self) { index in
+                        Text(streamController.bitrateOptions[index].label).tag(index)
+                    }
+                }
+                .pickerStyle(MenuPickerStyle())
+                .disabled(streamController.isStreaming)
+            }
+
+            if streamController.isStreaming {
+                Text("推流中无法切换设置，请先停止推流")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+
+    // MARK: - 功耗优化卡片
+
+    private var powerSavingCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("功耗优化", systemImage: "bolt.fill")
+                .font(.headline)
+
+            Divider()
+
+            // 音频开关
+            Toggle(isOn: $streamController.audioEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("麦克风音频传输")
+                        .font(.subheadline)
+                    Text("关闭后不采集麦克风，省电约 3-5%")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .disabled(streamController.isStreaming)
+
+            // 极简模式开关
+            Toggle(isOn: $streamController.minimalMode) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("极简模式（关闭统计刷新）")
+                        .font(.subheadline)
+                    Text("关闭帧率/码率/帧数统计刷新，省电约 2-3%")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .disabled(streamController.isStreaming)
+
+            if streamController.isStreaming {
+                Text("推流中无法切换设置，请先停止推流")
+                    .font(.caption)
+                    .foregroundColor(.orange)
             }
         }
         .padding()
@@ -182,6 +344,19 @@ struct ContentView: View {
                         .cornerRadius(10)
                 }
                 .disabled(!streamController.isStreaming)
+
+                Button(action: {
+                    streamController.toggleScreenDim()
+                }) {
+                    Label(streamController.isScreenDimmed ? "恢复屏幕" : "息屏",
+                          systemImage: streamController.isScreenDimmed ? "sun.max.fill" : "moon.fill")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(streamController.isScreenDimmed ? Color.orange : Color(.systemGray5))
+                        .foregroundColor(streamController.isScreenDimmed ? .white : .primary)
+                        .cornerRadius(10)
+                }
+                .disabled(!streamController.isStreaming)
             }
         }
     }
@@ -199,9 +374,11 @@ struct ContentView: View {
                 stepView(number: 1, text: "用数据线将 iPhone 连接到电脑")
                 stepView(number: 2, text: "在 iPhone 上点击「信任此电脑」")
                 stepView(number: 3, text: "确保电脑已安装 iTunes 或 Apple Devices")
-                stepView(number: 4, text: "点击「开始推流」按钮")
-                stepView(number: 5, text: "在电脑端 OBS 中添加「iOS Camera」来源")
-                stepView(number: 6, text: "启动 OBS 虚拟摄像头，在抖音直播伴侣中选择")
+                stepView(number: 4, text: "在「视频设置」中选择分辨率、方向和码率")
+                stepView(number: 5, text: "App 打开后自动开始推流")
+                stepView(number: 6, text: "在电脑端 OBS 中添加「iOS Camera」来源")
+                stepView(number: 7, text: "启动 OBS 虚拟摄像头，在抖音直播伴侣中选择")
+                stepView(number: 8, text: "推流中可点击「息屏」降低屏幕发热，快速双击屏幕中央唤醒")
             }
         }
         .padding()

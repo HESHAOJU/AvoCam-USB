@@ -27,6 +27,8 @@ class CaptureManager: NSObject {
     private(set) var currentPosition: AVCaptureDevice.Position = .back
     /// 当前格式信息
     private(set) var currentFormatInfo: CameraFormatInfo?
+    /// 当前视频方向
+    private(set) var currentOrientation: VideoOrientation = .landscape
 
     // MARK: - 初始化与配置
 
@@ -34,11 +36,28 @@ class CaptureManager: NSObject {
     func configure(position: AVCaptureDevice.Position = .back) {
         currentPosition = position
         sessionQueue.async { [weak self] in
-            self?.setupSession(position: position)
+            self?.setupSession(position: position, format: nil, orientation: .landscape)
         }
     }
 
-    private func setupSession(position: AVCaptureDevice.Position) {
+    /// 配置采集会话（手动指定格式）
+    func configure(position: AVCaptureDevice.Position = .back, format: CameraFormatInfo) {
+        currentPosition = position
+        sessionQueue.async { [weak self] in
+            self?.setupSession(position: position, format: format, orientation: .landscape)
+        }
+    }
+
+    /// 配置采集会话（手动指定格式和方向）
+    func configure(position: AVCaptureDevice.Position = .back, format: CameraFormatInfo, orientation: VideoOrientation) {
+        currentPosition = position
+        currentOrientation = orientation
+        sessionQueue.async { [weak self] in
+            self?.setupSession(position: position, format: format, orientation: orientation)
+        }
+    }
+
+    private func setupSession(position: AVCaptureDevice.Position, format: CameraFormatInfo?, orientation: VideoOrientation) {
         captureSession.beginConfiguration()
         defer { captureSession.commitConfiguration() }
 
@@ -59,23 +78,29 @@ class CaptureManager: NSObject {
             return
         }
 
-        // 选择最高规格格式
-        guard let bestFormat = CameraCapabilities.selectBestFormat(position: position) else {
-            print("[CaptureManager] 无法获取支持的格式")
-            return
+        // 选择格式：手动指定或自动选最高
+        let selectedFormat: CameraFormatInfo
+        if let format = format {
+            selectedFormat = format
+        } else {
+            guard let bestFormat = CameraCapabilities.selectBestFormat(position: position) else {
+                print("[CaptureManager] 无法获取支持的格式")
+                return
+            }
+            selectedFormat = bestFormat
         }
-        currentFormatInfo = bestFormat
+        currentFormatInfo = selectedFormat
 
         do {
             // 锁定配置
             try device.lockForConfiguration()
 
             // 设置活动格式
-            device.activeFormat = bestFormat.format
+            device.activeFormat = selectedFormat.format
 
             // 设置最大帧率
-            if let frameRateRange = bestFormat.format.videoSupportedFrameRateRanges.first(where: {
-                $0.maxFrameRate == bestFormat.maxFrameRate
+            if let frameRateRange = selectedFormat.format.videoSupportedFrameRateRanges.first(where: {
+                $0.maxFrameRate == selectedFormat.maxFrameRate
             }) {
                 device.activeVideoMinFrameDuration = frameRateRange.minFrameDuration
                 device.activeVideoMaxFrameDuration = frameRateRange.maxFrameDuration
@@ -94,7 +119,7 @@ class CaptureManager: NSObject {
 
             device.unlockForConfiguration()
 
-            print("[CaptureManager] 已配置摄像头: \(bestFormat)")
+            print("[CaptureManager] 已配置摄像头: \(selectedFormat)")
         } catch {
             print("[CaptureManager] 配置摄像头失败: \(error)")
             return
@@ -110,18 +135,6 @@ class CaptureManager: NSObject {
             print("[CaptureManager] 添加视频输入失败: \(error)")
         }
 
-        // 添加音频输入（麦克风）
-        if let audioDevice = AVCaptureDevice.default(for: .audio) {
-            do {
-                let audioInput = try AVCaptureDeviceInput(device: audioDevice)
-                if captureSession.canAddInput(audioInput) {
-                    captureSession.addInput(audioInput)
-                }
-            } catch {
-                print("[CaptureManager] 添加音频输入失败: \(error)")
-            }
-        }
-
         // 配置视频输出
         videoDataOutput.videoSettings = [
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange
@@ -132,16 +145,12 @@ class CaptureManager: NSObject {
             captureSession.addOutput(videoDataOutput)
         }
 
-        // 配置音频输出
-        audioDataOutput.setSampleBufferDelegate(self, queue: audioQueue)
-        if captureSession.canAddOutput(audioDataOutput) {
-            captureSession.addOutput(audioDataOutput)
-        }
+        // 音频输入输出改为在 start() 时动态配置，默认关闭以省电
 
         // 配置连接（方向等）
         if let connection = videoDataOutput.connection(with: .video) {
             if connection.isVideoOrientationSupported {
-                connection.videoOrientation = .portrait
+                connection.videoOrientation = (orientation == .portrait) ? .portrait : .landscapeRight
             }
         }
     }
@@ -149,11 +158,51 @@ class CaptureManager: NSObject {
     // MARK: - 控制
 
     /// 开始采集
-    func start() {
+    func start(audioEnabled: Bool = false) {
         sessionQueue.async { [weak self] in
             guard let self = self, !self.captureSession.isRunning else { return }
+            // 根据音频开关决定是否添加音频输入输出
+            self.configureAudio(audioEnabled: audioEnabled)
             self.captureSession.startRunning()
-            print("[CaptureManager] 采集已启动")
+            print("[CaptureManager] 采集已启动, 音频: \(audioEnabled ? "开" : "关")")
+        }
+    }
+
+    /// 动态配置音频输入输出
+    private func configureAudio(audioEnabled: Bool) {
+        captureSession.beginConfiguration()
+        defer { captureSession.commitConfiguration() }
+
+        // 移除现有的音频输入
+        for input in captureSession.inputs {
+            if let deviceInput = input as? AVCaptureDeviceInput,
+               deviceInput.device.hasMediaType(.audio) {
+                captureSession.removeInput(deviceInput)
+            }
+        }
+        // 移除现有的音频输出
+        for output in captureSession.outputs {
+            if output == audioDataOutput {
+                captureSession.removeOutput(output)
+            }
+        }
+
+        if audioEnabled {
+            // 添加音频输入（麦克风）
+            if let audioDevice = AVCaptureDevice.default(for: .audio) {
+                do {
+                    let audioInput = try AVCaptureDeviceInput(device: audioDevice)
+                    if captureSession.canAddInput(audioInput) {
+                        captureSession.addInput(audioInput)
+                    }
+                } catch {
+                    print("[CaptureManager] 添加音频输入失败: \(error)")
+                }
+            }
+            // 添加音频输出
+            if captureSession.canAddOutput(audioDataOutput) {
+                captureSession.addOutput(audioDataOutput)
+            }
         }
     }
 

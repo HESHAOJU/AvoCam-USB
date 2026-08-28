@@ -65,6 +65,28 @@ class CameraCapabilities {
         return sorted.first
     }
 
+    /// 获取所有支持的格式列表（去重，按分辨率和帧率排序）
+    static func getAllFormats(position: AVCaptureDevice.Position) -> [CameraFormatInfo] {
+        let formats = getSupportedFormats(position: position)
+        // 去重：相同分辨率和帧率的只保留一个
+        var seen = Set<String>()
+        var unique = [CameraFormatInfo]()
+        for format in formats {
+            let key = "\(format.width)x\(format.height)@\(Int(format.maxFrameRate))"
+            if !seen.contains(key) {
+                seen.insert(key)
+                unique.append(format)
+            }
+        }
+        // 按分辨率降序，再按帧率降序排序
+        return unique.sorted { a, b in
+            if a.width * a.height != b.width * b.height {
+                return a.width * a.height > b.width * b.height
+            }
+            return a.maxFrameRate > b.maxFrameRate
+        }
+    }
+
     /// 获取设备型号名称
     static func getDeviceName() -> String {
         var systemInfo = utsname()

@@ -21,14 +21,14 @@ struct PortalFrame {
     let tag: UInt32 = 0
     let payload: Data
 
-    /// 序列化为可发送的 Data
+    /// 序列化为可发送的 Data（大端序/网络字节序）
     func serialized() -> Data {
         var data = Data()
-        // 小端序写入
-        withUnsafeBytes(of: version.littleEndian) { data.append(contentsOf: $0) }
-        withUnsafeBytes(of: type.littleEndian) { data.append(contentsOf: $0) }
-        withUnsafeBytes(of: tag.littleEndian) { data.append(contentsOf: $0) }
-        withUnsafeBytes(of: UInt32(payload.count).littleEndian) { data.append(contentsOf: $0) }
+        // 大端序写入（网络字节序，与 ntohl 对应）
+        withUnsafeBytes(of: version.bigEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: type.bigEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: tag.bigEndian) { data.append(contentsOf: $0) }
+        withUnsafeBytes(of: UInt32(payload.count).bigEndian) { data.append(contentsOf: $0) }
         data.append(payload)
         return data
     }
